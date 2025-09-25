@@ -1,11 +1,8 @@
-package com.shopify_process.shopfy_process_transction.exception;
+package com.shopify_process.shopfy_process_transction.domain.exception;
 
 import org.springframework.http.HttpStatus;
 import lombok.Getter;
 
-/**
- * Classe base para todas as exceções personalizadas da aplicação
- */
 @Getter
 public abstract class BaseException extends RuntimeException {
     

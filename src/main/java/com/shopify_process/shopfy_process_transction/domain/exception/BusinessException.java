@@ -1,10 +1,7 @@
-package com.shopify_process.shopfy_process_transction.exception;
+package com.shopify_process.shopfy_process_transction.domain.exception;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * Exceção para erros de regra de negócio
- */
 public class BusinessException extends BaseException {
     
     public BusinessException(String message) {

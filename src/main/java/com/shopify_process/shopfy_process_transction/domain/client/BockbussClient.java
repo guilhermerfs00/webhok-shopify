@@ -4,13 +4,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import com.shopify_process.shopfy_process_transction.domain.exception.BusinessException;
+import com.shopify_process.shopfy_process_transction.domain.exception.NotFoundException;
+import com.shopify_process.shopfy_process_transction.domain.model.ApidogModelDTO;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.util.Map;
-import java.util.HashMap;
 
 @Service
+@Slf4j
 public class BockbussClient {
     
     private static final String BUCKSBUS_API_URL = "https://api.bucksbus.com/int/payment";
@@ -18,44 +25,50 @@ public class BockbussClient {
     @Autowired
     private RestTemplate restTemplate;
   
-    public Map<String, Object> processPayment(Map<String, Object> paymentRequest) {
+    public ApidogModelDTO processPayment(ApidogModelDTO paymentRequest) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Accept", "application/json");
-            headers.set("Authorization", "Bearer YOUR_API_KEY"); // Adicione se necessário
+            headers.set("Authorization", "Bearer YOUR_API_KEY");
             
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(paymentRequest, headers);
+            HttpEntity<ApidogModelDTO> request = new HttpEntity<>(paymentRequest, headers);
 
             @SuppressWarnings("rawtypes")
             ResponseEntity<Map> response = restTemplate.exchange(
                 BUCKSBUS_API_URL,
                 HttpMethod.POST,
-                entity,
+                request,
                 Map.class
             );
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
+            var responseBody = (ApidogModelDTO) response.getBody();
             
             return responseBody;
             
         } catch (HttpClientErrorException e) {
-            throw new RuntimeException("Erro na chamada para API Bucksbus: " + e.getStatusCode() + " - " + e.getResponseBodyAsString(), e);
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new NotFoundException("Payment endpoint not found: " + BUCKSBUS_API_URL);
+            } else if (e.getStatusCode().is4xxClientError()) {
+                throw new BusinessException("Invalid payment request: " + e.getResponseBodyAsString());
+            } else {
+                throw new BusinessException(HttpStatus.valueOf(e.getStatusCode().value()), "Payment processing failed: " + e.getResponseBodyAsString());
+            }
         } catch (ResourceAccessException e) {
-            throw new RuntimeException("Erro de conectividade com API Bucksbus: " + e.getMessage(), e);
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "Bucksbus API is unavailable: " + e.getMessage());
         } catch (Exception e) {
-            throw new RuntimeException("Erro inesperado ao chamar API Bucksbus: " + e.getMessage(), e);
+            // Tratar outros erros
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error processing payment: " + e.getMessage());
         }
     }
  
-    public Map<String, Object> processPaymentExample(Double amount, String currency, String orderId) {
-        Map<String, Object> paymentRequest = new HashMap<>();
-        paymentRequest.put("amount", amount);
-        paymentRequest.put("currency", currency);
-        paymentRequest.put("order_id", orderId);
-        paymentRequest.put("payment_method", "credit_card");
-        paymentRequest.put("timestamp", System.currentTimeMillis());
+    public ApidogModelDTO processPaymentExample(Double amount, String currency, String orderId) {
+        ApidogModelDTO paymentRequest = ApidogModelDTO.builder()
+        .amount(String.valueOf(amount))
+        .currency(currency)
+        .id(orderId)
+        .status("pending")
+        .build();
         
         return processPayment(paymentRequest);
     }
